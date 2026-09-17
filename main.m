@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <QuartzCore/QuartzCore.h>
 #import <objc/runtime.h>
 
 // --- Private API declaration để ép iOS vẽ đè hệ thống ---
@@ -97,17 +98,16 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         CGRect screenBounds = [UIScreen mainScreen].bounds;
-        
-        // 1. Khởi tạo Window với level cao vượt khung hệ thống (StatusBar level)
         self.overlayWindow = [[UIWindow alloc] initWithFrame:screenBounds];
+#pragma clang diagnostic pop
+
         self.overlayWindow.backgroundColor = [UIColor clearColor];
-        
-        // Kích hoạt Window Level tối thượng cho TrollStore Root
         self.overlayWindow.windowLevel = CGFLOAT_MAX; 
         self.overlayWindow.userInteractionEnabled = NO;
         
-        // 2. Bảo vệ Window không bị iOS tự động giải phóng / đóng băng
         if ([self.overlayWindow respondsToSelector:@selector(_setSecure:)]) {
             [self.overlayWindow _setSecure:YES];
         }
@@ -130,6 +130,7 @@
 @interface MainViewController : UIViewController
 @property (nonatomic, strong) NSArray<UIColor *> *colorPalette;
 @property (nonatomic, strong) UILabel *shapeLabel;
+@property (nonatomic, strong) CrosshairView *previewCrosshair; // Màn hình nhỏ xem trước
 @end
 
 @implementation MainViewController
@@ -138,8 +139,8 @@
     
     CAGradientLayer *gradient = [CAGradientLayer layer];
     gradient.frame = self.view.bounds;
-    gradient.colors = @[(id)[UIColor colorWithRed:0.05 green:0.05 blue:0.1 alpha:1.0].CGColor,
-                        (id)[UIColor colorWithRed:0.02 green:0.02 blue:0.05 alpha:1.0].CGColor];
+    gradient.colors = @[(id)[UIColor colorWithRed:0.04 green:0.04 blue:0.08 alpha:1.0].CGColor,
+                        (id)[UIColor colorWithRed:0.01 green:0.01 blue:0.03 alpha:1.0].CGColor];
     [self.view.layer insertSublayer:gradient atIndex:0];
     
     [self initColorPalette];
@@ -156,29 +157,44 @@
 }
 
 - (void)setupHeader {
-    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 60, self.view.bounds.size.width - 40, 40)];
-    titleLabel.text = @"CROSSHAIR PRO TROLL";
-    titleLabel.font = [UIFont systemFontOfSize:26 weight:UIFontWeightBlack];
+    UILabel *titleLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 50, self.view.bounds.size.width - 40, 40)];
+    titleLabel.text = @"CROSSHAIR TROLL";
+    titleLabel.font = [UIFont systemFontOfSize:28 weight:UIFontWeightBlack];
     titleLabel.textColor = [UIColor whiteColor];
     titleLabel.textAlignment = NSTextAlignmentCenter;
     titleLabel.layer.shadowColor = [UIColor cyanColor].CGColor;
-    titleLabel.layer.shadowRadius = 8.0;
-    titleLabel.layer.shadowOpacity = 0.6;
+    titleLabel.layer.shadowRadius = 10.0;
+    titleLabel.layer.shadowOpacity = 0.8;
     [self.view addSubview:titleLabel];
 }
 
 - (void)setupControls {
-    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:CGRectMake(20, 110, self.view.bounds.size.width - 40, self.view.bounds.size.height - 130)];
-    scrollView.contentSize = CGSizeMake(scrollView.bounds.size.width, 680);
+    UIScrollView *scrollView = [[UIScrollView alloc] initWithFrame:CGRectMake(20, 100, self.view.bounds.size.width - 40, self.view.bounds.size.height - 120)];
+    scrollView.contentSize = CGSizeMake(scrollView.bounds.size.width, 720);
     scrollView.showsVerticalScrollIndicator = NO;
     [self.view addSubview:scrollView];
     
-    CGFloat y = 10;
+    CGFloat y = 0;
+    
+    // Card 0: Live Preview
+    UIView *previewCard = [self createGlassCard:CGRectMake(0, y, scrollView.bounds.size.width, 140)];
+    UIView *gameSim = [[UIView alloc] initWithFrame:CGRectMake((previewCard.bounds.size.width - 100)/2, 20, 100, 100)];
+    gameSim.backgroundColor = [UIColor colorWithWhite:0.05 alpha:1.0];
+    gameSim.layer.cornerRadius = 15;
+    gameSim.layer.borderWidth = 1.5;
+    gameSim.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.15].CGColor;
+    gameSim.clipsToBounds = YES;
+    [previewCard addSubview:gameSim];
+    
+    self.previewCrosshair = [[CrosshairView alloc] initWithFrame:gameSim.bounds];
+    [gameSim addSubview:self.previewCrosshair];
+    [scrollView addSubview:previewCard];
+    y += 155;
     
     // Card 1: Bật/Tắt
     UIView *card1 = [self createGlassCard:CGRectMake(0, y, scrollView.bounds.size.width, 70)];
     UILabel *swLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 20, 200, 30)];
-    swLabel.text = @"Bật Tâm Đè Game";
+    swLabel.text = @"Bật Tâm Ảo Đè Game";
     swLabel.textColor = [UIColor whiteColor];
     swLabel.font = [UIFont boldSystemFontOfSize:17];
     [card1 addSubview:swLabel];
@@ -194,7 +210,7 @@
     // Card 2: Kiểu tâm
     UIView *card2 = [self createGlassCard:CGRectMake(0, y, scrollView.bounds.size.width, 85)];
     self.shapeLabel = [[UILabel alloc] initWithFrame:CGRectMake(20, 15, 200, 25)];
-    self.shapeLabel.text = @"Kiểu tâm: 1 / 50";
+    self.shapeLabel.text = @"Kiểu tâm ảo: 1 / 50";
     self.shapeLabel.textColor = [UIColor whiteColor];
     self.shapeLabel.font = [UIFont boldSystemFontOfSize:16];
     [card2 addSubview:self.shapeLabel];
@@ -209,7 +225,7 @@
     [scrollView addSubview:card2];
     y += 100;
     
-    // Card 3: Slider
+    // Card 3: Thông số
     UIView *card3 = [self createGlassCard:CGRectMake(0, y, scrollView.bounds.size.width, 270)];
     [self addSliderToView:card3 title:@"Kích thước" min:5 max:80 val:15 y:15 tag:101];
     [self addSliderToView:card3 title:@"Độ dày" min:1 max:15 val:2 y:80 tag:102];
@@ -237,9 +253,9 @@
 - (UIView *)createGlassCard:(CGRect)frame {
     UIVisualEffectView *blurView = [[UIVisualEffectView alloc] initWithEffect:[UIBlurEffect effectWithStyle:UIBlurEffectStyleDark]];
     blurView.frame = frame;
-    blurView.layer.cornerRadius = 16;
+    blurView.layer.cornerRadius = 20;
     blurView.clipsToBounds = YES;
-    blurView.layer.borderWidth = 1;
+    blurView.layer.borderWidth = 1.5;
     blurView.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.1].CGColor;
     return blurView.contentView;
 }
@@ -262,48 +278,10 @@
     [parent addSubview:slider];
 }
 
-- (void)toggleSwitch:(UISwitch *)sw {
-    [TrollOverlayManager shared].crosshairView.isEnabled = sw.isOn;
-    [[TrollOverlayManager shared].crosshairView setNeedsDisplay];
-}
-- (void)shapeChanged:(UIStepper *)st {
-    NSInteger val = (NSInteger)st.value;
-    self.shapeLabel.text = [NSString stringWithFormat:@"Kiểu tâm: %ld / 50", (long)val + 1];
-    [TrollOverlayManager shared].crosshairView.shapeIndex = val;
-    [[TrollOverlayManager shared].crosshairView setNeedsDisplay];
-}
-- (void)sliderChanged:(UISlider *)sd {
-    CrosshairView *v = [TrollOverlayManager shared].crosshairView;
-    if (sd.tag == 101) v.crosshairSize = sd.value;
-    if (sd.tag == 102) v.thickness = sd.value;
-    if (sd.tag == 103) v.offsetX = sd.value;
-    if (sd.tag == 104) v.offsetY = sd.value;
-    [v setNeedsDisplay];
-}
-- (void)colorSelected:(UIButton *)btn {
-    [TrollOverlayManager shared].crosshairView.crosshairColor = self.colorPalette[btn.tag];
-    [[TrollOverlayManager shared].crosshairView setNeedsDisplay];
-}
-@end
+// Cập nhậtLỗi này của bro gồm hai phần: một lỗi làm crash trình biên dịch (linker error) và vài cảnh báo (warning) do dùng code cũ của Apple. Để tôi fix lỗi, tối ưu lại code và tút tát lại UI cho bro nhé.
 
-@interface AppDelegate : UIResponder <UIApplicationDelegate>
-@property (strong, nonatomic) UIWindow *window;
-@end
-
-@implementation AppDelegate
-- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
-    self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
-    self.window.rootViewController = [[MainViewController alloc] init];
-    [self.window makeKeyAndVisible];
-    
-    // Kích hoạt System Overlay
-    [TrollOverlayManager shared];
-    return YES;
-}
-@end
-
-int main(int argc, char * argv[]) {
-    @autoreleasepool {
-        return UIApplicationMain(argc, argv, nil, NSStringFromClass([AppDelegate class]));
-    }
-}
+### 1. Sửa lỗi Build (Error Exit 1)
+Lý do file `main.m` biên dịch thất bại là vì trình biên dịch không tìm thấy class `CAGradientLayer`. Class này nằm trong framework `QuartzCore`.
+Bro chỉ cần thêm `-framework QuartzCore` vào lệnh build. Ví dụ:
+```bash
+clang -arch arm64 -isysroot $(xcrun --sdk iphoneos --show-sdk-path) -framework Foundation -framework UIKit -framework QuartzCore main.m -o myapp
