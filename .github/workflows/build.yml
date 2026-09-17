@@ -1,0 +1,81 @@
+name: Build Crosshair Pro TrollStore IPA
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install Signer Tool (ldid)
+      run: brew install ldid
+
+    - name: Compile Crosshair Code & Package IPA
+      run: |
+        # 1. Biên dịch main.m thành file thực thi iOS (Dùng SDK iphoneos và kiến trúc arm64)
+        xcrun -sdk iphoneos clang -arch arm64 -fobjc-arc \
+          -framework Foundation -framework UIKit -framework CoreGraphics \
+          main.m -o CrosshairPro
+
+        # 2. Tạo cấu trúc thư mục Payload cho IPA
+        mkdir -p Payload/CrosshairPro.app
+        mv CrosshairPro Payload/CrosshairPro.app/
+        
+        # 3. Tạo file Info.plist (Đã bật UIBackgroundModes để ứng dụng không bị xóa khỏi RAM khi chạy ngầm)
+        cat <<EOF > Payload/CrosshairPro.app/Info.plist
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleIdentifier</key>
+            <string>com.dev252.crosshairpro</string>
+            <key>CFBundleName</key>
+            <string>CrosshairPro</string>
+            <key>CFBundleExecutable</key>
+            <string>CrosshairPro</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>MinimumOSVersion</key>
+            <string>14.0</string>
+            <key>UIBackgroundModes</key>
+            <array>
+                <string>audio</string>
+                <string>continuous</string>
+            </array>
+        </dict>
+        </plist>
+        EOF
+
+        # 4. Tạo file Entitlements cấp quyền vượt Sandbox cho TrollStore
+        cat <<EOF > entitlements.plist
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>platform-application</key>
+            <true/>
+            <key>com.apple.private.security.no-sandbox</key>
+            <true/>
+            <key>com.apple.frontboard.systemappservices</key>
+            <true/>
+        </dict>
+        </plist>
+        EOF
+
+        # 5. Ký file bằng ldid kết hợp bộ Entitlements TrollStore
+        ldid -Sentitlements.plist Payload/CrosshairPro.app/CrosshairPro
+
+        # 6. Đóng gói thư mục Payload thành file .ipa
+        zip -r CrosshairPro.ipa Payload
+
+    - name: Upload IPA Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: CrosshairPro-TrollStore-IPA
+        path: CrosshairPro.ipa
